@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Day Planner</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌤️ Smart Day Planner</h1>
+            <p>Your daily activities adapted to weather conditions</p>
+        </header>
+
+        <div class="controls">
+            <input type="text" id="cityInput" placeholder="Enter city name" value="Berlin">
+            <button onclick="updateWeather()">Update Weather & Plan</button>
+            <button onclick="refreshPlan()">Refresh Plan Only</button>
+        </div>
+
+        <div class="dashboard">
+            <div class="weather-card">
+                <h2>Current Weather</h2>
+                <div id="weatherInfo" class="weather-info">
+                    <p>No weather data available. Please update weather.</p>
+                </div>
+            </div>
+
+            <div class="plan-card">
+                <h2>Today's Plan</h2>
+                <div id="planInfo" class="plan-info">
+                    <p>No plan available. Please update weather.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="preferences">
+            <h2>User Preferences</h2>
+            <div class="preference-controls">
+                <label>
+                    <input type="checkbox" id="prefOutdoor" onchange="updatePreferences()">
+                    Prefer Outdoor Activities
+                </label>
+                <label>
+                    <input type="checkbox" id="prefIndoor" onchange="updatePreferences()">
+                    Prefer Indoor Activities
+                </label>
+                <label>
+                    <input type="checkbox" id="prefSport" onchange="updatePreferences()">
+                    Avoid Sports
+                </label>
+                <label>
+                    <input type="checkbox" id="prefLearning" onchange="updatePreferences()">
+                    Prefer Learning
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function updateWeather() {
+            const city = document.getElementById('cityInput').value || 'Berlin';
+            try {
+                const response = await fetch(`/api/v1/weather/update?city=${encodeURIComponent(city)}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    await loadCurrentPlan();
+                    displayWeather(result.weather);
+                } else {
+                    alert('Error updating weather: ' + result.detail);
+                }
+            } catch (error) {
+                alert('Error updating weather: ' + error.message);
+            }
+        }
+
+        async function refreshPlan() {
+            await loadCurrentPlan();
+        }
+
+        async function loadCurrentPlan() {
+            try {
+                const response = await fetch('/api/v1/plan/current');
+                if (response.ok) {
+                    const plan = await response.json();
+                    displayPlan(plan);
+                    displayWeather(plan.weather);
+                } else {
+                    document.getElementById('planInfo').innerHTML = '<p>No plan available. Please update weather first.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading plan:', error);
+            }
+        }
+
+        function displayWeather(weather) {
+            const weatherInfo = document.getElementById('weatherInfo');
+            weatherInfo.innerHTML = `
+                <div class="weather-detail">
+                    <strong>Condition:</strong> ${weather.condition}
+                </div>
+                <div class="weather-detail">
+                    <strong>Temperature:</strong> ${weather.temperature}°C
+                </div>
+                <div class="weather-detail">
+                    <strong>Humidity:</strong> ${weather.humidity}%
+                </div>
+                <div class="weather-detail">
+                    <strong>Description:</strong> ${weather.description}
+                </div>
+                <div class="weather-detail">
+                    <strong>Location:</strong> ${weather.location}
+                </div>
+            `;
+        }
+
+        function displayPlan(plan) {
+            const planInfo = document.getElementById('planInfo');
+            const activitiesHtml = plan.activities.map(activity => `
+                <div class="activity-item">
+                    <h3>${activity.name}</h3>
+                    <p><strong>Type:</strong> ${activity.type}</p>
+                    <p><strong>Priority:</strong> ${'★'.repeat(activity.priority)}</p>
+                    <p>${activity.description || ''}</p>
+                </div>
+            `).join('');
+            
+            planInfo.innerHTML = activitiesHtml || '<p>No activities planned for today.</p>';
+        }
+
+        async function updatePreferences() {
+            const preferences = {
+                preferred_types: [],
+                avoid_types: [],
+                working_hours: { start: 9, end: 17 },
+                weekend_mode: true
+            };
+
+            if (document.getElementById('prefOutdoor').checked) {
+                preferences.preferred_types.push('outdoor');
+            }
+            if (document.getElementById('prefIndoor').checked) {
+                preferences.preferred_types.push('indoor');
+            }
+            if (document.getElementById('prefLearning').checked) {
+                preferences.preferred_types.push('learning');
+            }
+            if (document.getElementById('prefSport').checked) {
+                preferences.avoid_types.push('sport');
+            }
+
+            try {
+                const response = await fetch('/api/v1/preferences', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(preferences)
+                });
+
+                if (response.ok) {
+                    await loadCurrentPlan();
+                }
+            } catch (error) {
+                console.error('Error updating preferences:', error);
+            }
+        }
+
+        // Load initial data
+        loadCurrentPlan();
+    </script>
+</body>
